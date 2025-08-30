@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Search, 
   Plus, 
@@ -12,16 +12,99 @@ import {
   Car,
   Calendar
 } from 'lucide-react';
-import { mockDrivers } from '../data/mockData';
+// import { mockDrivers } from '../data/mockData';
+import { getDrivers } from '../utils/apis';
 import { Driver } from '../types';
 import Modal from '../components/UI/Modal';
 
+// ==== API helper (create driver in users table with driver: 1) ====
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/admin';
+// If your backend expects /users instead, swap this to `${API_BASE}/users`
+const POST_URL = `${API_BASE}/drivers`;
+
+async function createDriverOnServer(payload: { name: string; email: string; phone: string }) {
+  // Split name into first/last for your DB shape
+  const parts = payload.name.trim().split(/\s+/);
+  const first_name = parts[0] || '';
+  const last_name = parts.length > 1 ? parts.slice(1).join(' ') : null;
+
+  const res = await fetch(POST_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      first_name,
+      last_name,
+      email: payload.email || null,
+      phonenumber: payload.phone || null,
+      driver: 1, // <— important: mark as driver
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Create driver failed (${res.status}): ${text || 'Unknown error'}`);
+  }
+  return res.json(); // expect created user object or {item: {...}}
+}
+
+// ==== Incoming API type (loose) ====
+type ApiDriver = {
+  id: number | string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phonenumber: string | null;
+  driver?: boolean | number;
+  status?: boolean;
+  vehicle_id?: number | null;
+  createdAt?: string | null;
+  created_at?: string | null;
+};
+
+// ==== Normalizer to your UI Driver type ====
+function normalizeDriver(u: ApiDriver): Driver {
+  const fullName = `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim();
+  const name = fullName || u.phonenumber || u.email || `ID ${u.id}`;
+  const joinedDate = (u.createdAt || u.created_at || new Date().toISOString()).toString();
+
+  return {
+    id: String(u.id),
+    name,
+    email: u.email ?? '-',
+    phone: u.phonenumber ?? '-',
+    // The backend doesn’t supply these yet — keep UI fields present with safe defaults
+    vehicleModel: '-',
+    vehiclePlate: '-',
+    licenseNumber: '-',
+    rating: 0,
+    totalRides: 0,
+    joinedDate,
+    // Use backend flags if present; otherwise sensible defaults
+    isActive: u.status ?? true,
+    isAvailable: (u.status ?? true) ? true : false,
+  };
+}
+
 const Drivers: React.FC = () => {
-  const [drivers, setDrivers] = useState<Driver[]>(mockDrivers);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    getDrivers()
+      .then((data) => {
+        const items: ApiDriver[] = (data?.items ?? data ?? []);
+        const mapped = items.map(normalizeDriver);
+        if (mounted) setDrivers(mapped);
+      })
+      .catch(() => {
+        // optional: toast or console error
+      });
+    return () => { mounted = false; };
+  }, []);
 
   const filteredDrivers = drivers.filter(driver =>
     driver.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -42,10 +125,7 @@ const Drivers: React.FC = () => {
   const handleToggleAvailable = (driverId: string) => {
     setDrivers(prev => prev.map(driver => 
       driver.id === driverId 
-        ? { 
-            ...driver, 
-            isAvailable: !driver.isAvailable 
-          }
+        ? { ...driver, isAvailable: !driver.isAvailable }
         : driver
     ));
   };
@@ -102,7 +182,7 @@ const Drivers: React.FC = () => {
           { label: 'Total Drivers', value: drivers.length, color: 'bg-blue-500' },
           { label: 'Active Drivers', value: activeDrivers, color: 'bg-green-500' },
           { label: 'Available Now', value: availableDrivers, color: 'bg-purple-500' },
-          { label: 'Avg Rating', value: (drivers.reduce((sum, d) => sum + d.rating, 0) / drivers.length).toFixed(1) + '⭐', color: 'bg-yellow-500' }
+          { label: 'Avg Rating', value: (drivers.length ? (drivers.reduce((sum, d) => sum + d.rating, 0) / drivers.length).toFixed(1) : '0.0') + '⭐', color: 'bg-yellow-500' }
         ].map((stat, index) => (
           <div key={index} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="flex items-center justify-between">
@@ -278,24 +358,35 @@ const Drivers: React.FC = () => {
                 setSelectedDriver(null);
                 setIsEditing(false);
               }}
-              onSave={(driverData) => {
-                if (selectedDriver) {
-                  setDrivers(prev => prev.map(d => 
-                    d.id === selectedDriver.id ? { ...d, ...driverData } : d
-                  ));
-                } else {
-                  const newDriver: Driver = {
-                    id: `d${Date.now()}`,
-                    ...driverData,
-                    rating: 5.0,
-                    totalRides: 0,
-                    joinedDate: new Date().toISOString().split('T')[0]
-                  };
-                  setDrivers(prev => [...prev, newDriver]);
+              onSave={async (driverData) => {
+                try {
+                  if (selectedDriver) {
+                    // Local edit only (no backend change requested)
+                    setDrivers(prev => prev.map(d => 
+                      d.id === selectedDriver.id ? { ...d, ...driverData } : d
+                    ));
+                  } else {
+                    // CREATE on backend with only name/email/phone and driver:1
+                    const payload = {
+                      name: driverData.name?.trim() || '',
+                      email: driverData.email?.trim() || '',
+                      phone: driverData.phone?.trim() || '',
+                    };
+                    const created = await createDriverOnServer(payload);
+                    const createdItem = created?.item ?? created; // support both shapes
+                    const normalized = normalizeDriver(createdItem as ApiDriver);
+
+                    // Add to UI list
+                    setDrivers(prev => [...prev, normalized]);
+                  }
+                } catch (err) {
+                  console.error(err);
+                  alert('Failed to save driver. Please try again.'); // simple feedback
+                } finally {
+                  setShowModal(false);
+                  setSelectedDriver(null);
+                  setIsEditing(false);
                 }
-                setShowModal(false);
-                setSelectedDriver(null);
-                setIsEditing(false);
               }}
             />
           ) : selectedDriver ? (
@@ -310,7 +401,7 @@ const Drivers: React.FC = () => {
 const DriverForm: React.FC<{
   driver: Driver | null;
   onClose: () => void;
-  onSave: (data: Partial<Driver>) => void;
+  onSave: (data: Partial<Driver>) => void | Promise<void>;
 }> = ({ driver, onClose, onSave }) => {
   const [formData, setFormData] = useState({
     name: driver?.name || '',
@@ -323,9 +414,20 @@ const DriverForm: React.FC<{
     isAvailable: driver?.isAvailable ?? true
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    // IMPORTANT: Only name, email, phone are persisted to backend (driver:1 set server-side helper)
+    await onSave({
+      name: formData.name,
+      email: formData.email,
+      phone: formData.phone,
+      // The rest are kept for UI only
+      licenseNumber: formData.licenseNumber,
+      vehicleModel: formData.vehicleModel,
+      vehiclePlate: formData.vehiclePlate,
+      isActive: formData.isActive,
+      isAvailable: formData.isAvailable
+    });
   };
 
   return (
@@ -361,6 +463,8 @@ const DriverForm: React.FC<{
             required
           />
         </div>
+
+        {/* These fields remain for UI (not persisted in create) */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">License Number</label>
           <input
@@ -368,7 +472,6 @@ const DriverForm: React.FC<{
             value={formData.licenseNumber}
             onChange={(e) => setFormData(prev => ({ ...prev, licenseNumber: e.target.value }))}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            required
           />
         </div>
         <div>
@@ -378,7 +481,6 @@ const DriverForm: React.FC<{
             value={formData.vehicleModel}
             onChange={(e) => setFormData(prev => ({ ...prev, vehicleModel: e.target.value }))}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            required
           />
         </div>
         <div>
@@ -388,7 +490,6 @@ const DriverForm: React.FC<{
             value={formData.vehiclePlate}
             onChange={(e) => setFormData(prev => ({ ...prev, vehiclePlate: e.target.value }))}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            required
           />
         </div>
       </div>

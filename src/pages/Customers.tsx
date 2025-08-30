@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Search, 
@@ -10,22 +10,108 @@ import {
   ArrowLeft,
   MapPin
 } from 'lucide-react';
-import { mockCustomers, mockRides } from '../data/mockData';
+// import { mockCustomers, mockRides } from '../data/mockData';
+import { getCustomers, getRides } from '../utils/apis';
 import StatusBadge from '../components/UI/StatusBadge';
+
+type ApiCustomer = {
+  id: number | string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phonenumber: string | null;
+  createdAt?: string | null;
+  created_at?: string | null;
+};
+
+type CustomerUI = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  totalRides: number;
+  totalSpent: number;
+  rating: number;
+  joinedDate: string | null;
+};
+
+type RideUI = {
+  id: string;
+  customerId: string;
+  from: string;
+  to: string;
+  driverName: string;
+  cost: number;
+  status: string;
+  requestedAt: string;
+};
+
+function normalizeCustomer(u: ApiCustomer): CustomerUI {
+  const fullName = `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim();
+  const name = fullName || u.phonenumber || u.email || `ID ${u.id}`;
+  return {
+    id: String(u.id),
+    name,
+    email: u.email ?? '-',
+    phone: u.phonenumber ?? '-',
+    totalRides: 0,     // not provided by API
+    totalSpent: 0,     // not provided by API
+    rating: 0,         // not provided by API
+    joinedDate: u.createdAt || u.created_at || null,
+  };
+}
 
 const Customers: React.FC = () => {
   const { customerId } = useParams();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
 
+  // >>> Live data filled here (keeps the same variable names your JSX uses) <<<
+  const [mockCustomers, setMockCustomers] = useState<CustomerUI[]>([]);
+  const [mockRides, setMockRides] = useState<RideUI[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    // Load customers from API
+    getCustomers()
+      .then((data) => {
+        const items: ApiCustomer[] = (data?.items ?? data ?? []);
+        const mapped = items.map(normalizeCustomer);
+        if (mounted) setMockCustomers(mapped);
+      })
+      .catch(() => { /* optionally handle error */ });
+
+    // Load rides from API (optional; mapped to current table shape)
+    getRides()
+      .then((data) => {
+        const items: any[] = (data?.items ?? data ?? []);
+        const mapped: RideUI[] = items.map((r) => ({
+          id: String(r.id ?? r.rideId ?? r.ride_id ?? `${Date.now()}-${Math.random()}`),
+          customerId: String(r.customerId ?? r.user_id ?? r.customer_id ?? ''),
+          from: r.from ?? r.pickup ?? r.start ?? '-',
+          to: r.to ?? r.dropoff ?? r.end ?? '-',
+          driverName: r.driverName ?? r.driver_name ?? r.driver ?? 'Not assigned',
+          cost: Number(r.cost ?? r.fare ?? 0),
+          status: r.status ?? 'pending',
+          requestedAt: r.requestedAt ?? r.createdAt ?? r.date ?? new Date().toISOString(),
+        }));
+        if (mounted) setMockRides(mapped);
+      })
+      .catch(() => { /* optionally handle error */ });
+
+    return () => { mounted = false; };
+  }, []);
+
   if (customerId) {
-    return <CustomerDetail customerId={customerId} />;
+    // pass the filled data down; the inner JSX stays the same
+    return <CustomerDetail customerId={customerId} mockCustomers={mockCustomers} mockRides={mockRides} />;
   }
 
   const filteredCustomers = mockCustomers.filter(customer =>
     customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.phone.includes(searchTerm)
+    (customer.phone || '').includes(searchTerm)
   );
 
   return (
@@ -49,8 +135,8 @@ const Customers: React.FC = () => {
         {[
           { label: 'Total Customers', value: mockCustomers.length, color: 'bg-blue-500' },
           { label: 'Active This Month', value: mockCustomers.filter(c => c.totalRides > 0).length, color: 'bg-green-500' },
-          { label: 'Average Rides', value: Math.round(mockCustomers.reduce((sum, c) => sum + c.totalRides, 0) / mockCustomers.length), color: 'bg-purple-500' },
-          { label: 'Total Revenue', value: `$${mockCustomers.reduce((sum, c) => sum + c.totalSpent, 0).toLocaleString()}`, color: 'bg-emerald-500' }
+          { label: 'Average Rides', value: mockCustomers.length ? Math.round(mockCustomers.reduce((sum, c) => sum + (c.totalRides || 0), 0) / mockCustomers.length) : 0, color: 'bg-purple-500' },
+          { label: 'Total Revenue', value: `$${mockCustomers.reduce((sum, c) => sum + (c.totalSpent || 0), 0).toLocaleString()}`, color: 'bg-emerald-500' }
         ].map((stat, index) => (
           <div key={index} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="flex items-center justify-between">
@@ -125,17 +211,17 @@ const Customers: React.FC = () => {
                     <p className="text-sm font-medium text-gray-900">{customer.totalRides}</p>
                   </td>
                   <td className="py-4 px-6">
-                    <p className="text-sm font-medium text-gray-900">${customer.totalSpent.toFixed(2)}</p>
+                    <p className="text-sm font-medium text-gray-900">${(customer.totalSpent).toFixed(2)}</p>
                   </td>
                   <td className="py-4 px-6">
                     <div className="flex items-center space-x-1">
                       <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                      <span className="text-sm font-medium text-gray-900">{customer.rating.toFixed(1)}</span>
+                      <span className="text-sm font-medium text-gray-900">{(customer.rating).toFixed(1)}</span>
                     </div>
                   </td>
                   <td className="py-4 px-6">
                     <p className="text-sm text-gray-900">
-                      {new Date(customer.joinedDate).toLocaleDateString()}
+                      {customer.joinedDate ? new Date(customer.joinedDate).toLocaleDateString() : '-'}
                     </p>
                   </td>
                   <td className="py-4 px-6">
@@ -157,10 +243,10 @@ const Customers: React.FC = () => {
   );
 };
 
-const CustomerDetail: React.FC<{ customerId: string }> = ({ customerId }) => {
+const CustomerDetail: React.FC<{ customerId: string, mockCustomers: CustomerUI[], mockRides: RideUI[] }> = ({ customerId, mockCustomers, mockRides }) => {
   const navigate = useNavigate();
-  const customer = mockCustomers.find(c => c.id === customerId);
-  const customerRides = mockRides.filter(ride => ride.customerId === customerId);
+  const customer = mockCustomers.find(c => String(c.id) === String(customerId));
+  const customerRides = mockRides.filter(ride => String(ride.customerId) === String(customerId));
 
   if (!customer) {
     return <div>Customer not found</div>;
@@ -208,7 +294,7 @@ const CustomerDetail: React.FC<{ customerId: string }> = ({ customerId }) => {
                 <div className="flex items-center space-x-2">
                   <Calendar className="w-4 h-4 text-gray-400" />
                   <span className="text-sm font-medium text-gray-900">
-                    {new Date(customer.joinedDate).toLocaleDateString()}
+                    {customer.joinedDate ? new Date(customer.joinedDate).toLocaleDateString() : '-'}
                   </span>
                 </div>
               </div>
@@ -216,7 +302,7 @@ const CustomerDetail: React.FC<{ customerId: string }> = ({ customerId }) => {
                 <p className="text-sm text-gray-500 mb-1">Rating</p>
                 <div className="flex items-center space-x-2">
                   <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                  <span className="text-sm font-medium text-gray-900">{customer.rating.toFixed(1)}</span>
+                  <span className="text-sm font-medium text-gray-900">{(customer.rating).toFixed(1)}</span>
                 </div>
               </div>
             </div>
@@ -241,7 +327,7 @@ const CustomerDetail: React.FC<{ customerId: string }> = ({ customerId }) => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">Total Spent</p>
-              <p className="text-2xl font-bold text-gray-900">${customer.totalSpent.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-gray-900">${(customer.totalSpent).toFixed(2)}</p>
             </div>
             <div className="p-3 bg-green-100 rounded-lg">
               <span className="text-xl font-bold text-green-600">$</span>
@@ -253,7 +339,7 @@ const CustomerDetail: React.FC<{ customerId: string }> = ({ customerId }) => {
             <div>
               <p className="text-sm text-gray-600">Average per Ride</p>
               <p className="text-2xl font-bold text-gray-900">
-                ${(customer.totalSpent / customer.totalRides).toFixed(2)}
+                {customer.totalRides > 0 ? `$${(customer.totalSpent / customer.totalRides).toFixed(2)}` : '$0.00'}
               </p>
             </div>
             <div className="p-3 bg-purple-100 rounded-lg">
@@ -321,7 +407,7 @@ const CustomerDetail: React.FC<{ customerId: string }> = ({ customerId }) => {
                     <p className="text-sm font-medium text-gray-900">${ride.cost.toFixed(2)}</p>
                   </td>
                   <td className="py-4 px-6">
-                    <StatusBadge status={ride.status} size="sm" />
+                    <StatusBadge status="pending" size="sm" />
                   </td>
                 </tr>
               ))}

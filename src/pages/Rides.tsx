@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Search, 
   Filter, 
@@ -9,24 +9,145 @@ import {
   MapPin,
   Clock
 } from 'lucide-react';
-import { mockRides, mockDrivers } from '../data/mockData';
-import { Ride } from '../types';
+// import { mockRides, mockDrivers } from '../data/mockData';
+import { getRides, getDrivers } from '../utils/apis';
+import { Ride, Driver } from '../types';
 import StatusBadge from '../components/UI/StatusBadge';
 import Modal from '../components/UI/Modal';
 
+// --- Generic API shapes (loose) ---
+type ApiRide = Record<string, any>;
+type ApiDriver = {
+  id: number | string;
+  first_name?: string | null;
+  last_name?: string | null;
+  email?: string | null;
+  phonenumber?: string | null;
+  status?: boolean;   // active?
+  isAvailable?: boolean;
+  createdAt?: string | null;
+  created_at?: string | null;
+};
+
+// --- Normalizers to match your UI types exactly ---
+function normalizeDriver(u: ApiDriver): Driver {
+  const fullName = `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim();
+  const name = fullName || u.phonenumber || u.email || `ID ${u.id}`;
+
+  return {
+    id: String(u.id),
+    name,
+    email: u.email ?? '-',
+    phone: u.phonenumber ?? '-',
+    vehicleModel: '-',     // fill when backend provides
+    vehiclePlate: '-',     // fill when backend provides
+    licenseNumber: '-',    // fill when backend provides
+    rating: 0,             // fill when backend provides
+    totalRides: 0,         // fill when backend provides
+    joinedDate: (u.createdAt || u.created_at || new Date().toISOString()).toString(),
+    isActive: u.status ?? true,
+    isAvailable: u.isAvailable ?? (u.status ?? true),
+  };
+}
+
+function normalizeRide(r: ApiRide): Ride {
+  const id = String(
+    r.id ?? r.rideId ?? r.ride_id ?? r.reference ?? `${Date.now()}-${Math.random()}`
+  );
+
+  // Customer name inference
+  const first = r.customerFirstName ?? r.first_name ?? r.user_first_name ?? r.user?.first_name;
+  const last  = r.customerLastName ?? r.last_name ?? r.user_last_name ?? r.user?.last_name;
+  const customerName =
+    r.customerName ?? (
+      [first, last].filter(Boolean).join(' ').trim() ||
+      r.user?.name ||
+      r.customer?.name ||
+      r.user?.phonenumber ||
+      r.user?.email ||
+      'Customer'
+    );
+
+  // Driver inference
+  const driverFirst = r.driverFirstName ?? r.driver?.first_name;
+  const driverLast  = r.driverLastName ?? r.driver?.last_name;
+  const driverName =
+    r.driverName ?? (
+      [driverFirst, driverLast].filter(Boolean).join(' ').trim() ||
+      r.driver?.name ||
+      ''
+    );
+
+  // Route inference
+  const from = r.from ?? r.pickup ?? r.start ?? r.pickupAddress ?? r.source ?? '-';
+  const to   = r.to ?? r.dropoff ?? r.end ?? r.dropoffAddress ?? r.destination ?? '-';
+
+  // Time fields
+  const requestedAt = (r.requestedAt ?? r.createdAt ?? r.date ?? new Date().toISOString()).toString();
+  const completedAt = r.completedAt ?? r.endTime ?? null;
+
+  // Financial / meta
+  const cost = Number(r.cost ?? r.fare ?? r.amount ?? r.price ?? 0);
+  const distance = r.distance ?? r.km ?? r.miles ?? '-';
+  const duration = r.duration ?? r.time ?? '-';
+  const status = (r.status ?? 'pending') as Ride['status'];
+
+  return {
+    id,
+    customerId: String(r.customerId ?? r.user_id ?? r.customer_id ?? ''),
+    customerName,
+    driverId: r.driverId ? String(r.driverId) : (r.driver?.id ? String(r.driver.id) : ''),
+    driverName,
+    from,
+    to,
+    cost,
+    distance,
+    duration,
+    status,
+    requestedAt,
+    completedAt: completedAt ? String(completedAt) : undefined,
+  };
+}
+
 const Rides: React.FC = () => {
-  const [rides, setRides] = useState<Ride[]>(mockRides);
+  // Swap mock data with live state (same variable names used by your JSX)
+  const [rides, setRides] = useState<Ride[]>([]);
+  const [mockDrivers, setMockDrivers] = useState<Driver[]>([]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedRide, setSelectedRide] = useState<Ride | null>(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState('');
 
+  // Fetch from API once
+  useEffect(() => {
+    let mounted = true;
+
+    getRides()
+      .then((data) => {
+        const items: ApiRide[] = (data?.items ?? data ?? []);
+        const mapped = items.map(normalizeRide);
+        if (mounted) setRides(mapped);
+      })
+      .catch(() => { /* optional: toast */ });
+
+    getDrivers()
+      .then((data) => {
+        const items: ApiDriver[] = (data?.items ?? data ?? []);
+        const mapped = items.map(normalizeDriver);
+        if (mounted) setMockDrivers(mapped);
+      })
+      .catch(() => { /* optional: toast */ });
+
+    return () => { mounted = false; };
+  }, []);
+
   const filteredRides = rides.filter(ride => {
     const matchesSearch = 
       ride.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ride.from.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ride.to.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (ride.from || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (ride.to || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       ride.id.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus = statusFilter === 'all' || ride.status === statusFilter;
@@ -62,9 +183,7 @@ const Rides: React.FC = () => {
             status: 'confirmed' as const
           } : ride
         ));
-        
-        // Update driver availability (mark as busy)
-        // In a real app, this would be handled by the backend
+        // In real app: also PATCH backend to persist the assignment
         console.log(`Driver ${driver.name} assigned to ride ${selectedRide.id}`);
       }
     }
