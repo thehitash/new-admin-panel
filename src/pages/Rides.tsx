@@ -310,8 +310,8 @@ const Rides: React.FC = () => {
                     </div>
                   </td>
                   <td className="py-4 px-6">
-                    <p className="text-sm font-medium text-gray-900">${ride.cost.toFixed(2)}</p>
-                    <p className="text-xs text-gray-500">{ride.distance}</p>
+                    <p className="text-sm font-medium text-gray-900">€{ride.cost.toFixed(2)}</p>
+                    <p className="text-xs text-gray-500">{ride.distance} miles</p>
                   </td>
                   <td className="py-4 px-6">
                     <StatusBadge status={ride.status} size="sm" />

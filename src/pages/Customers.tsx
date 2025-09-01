@@ -136,7 +136,7 @@ const Customers: React.FC = () => {
           { label: 'Total Customers', value: mockCustomers.length, color: 'bg-blue-500' },
           { label: 'Active This Month', value: mockCustomers.filter(c => c.totalRides > 0).length, color: 'bg-green-500' },
           { label: 'Average Rides', value: mockCustomers.length ? Math.round(mockCustomers.reduce((sum, c) => sum + (c.totalRides || 0), 0) / mockCustomers.length) : 0, color: 'bg-purple-500' },
-          { label: 'Total Revenue', value: `$${mockCustomers.reduce((sum, c) => sum + (c.totalSpent || 0), 0).toLocaleString()}`, color: 'bg-emerald-500' }
+          { label: 'Total Revenue', value: `€${mockCustomers.reduce((sum, c) => sum + (c.totalSpent || 0), 0).toLocaleString()}`, color: 'bg-emerald-500' }
         ].map((stat, index) => (
           <div key={index} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="flex items-center justify-between">
@@ -211,7 +211,7 @@ const Customers: React.FC = () => {
                     <p className="text-sm font-medium text-gray-900">{customer.totalRides}</p>
                   </td>
                   <td className="py-4 px-6">
-                    <p className="text-sm font-medium text-gray-900">${(customer.totalSpent).toFixed(2)}</p>
+                    <p className="text-sm font-medium text-gray-900">€{(customer.totalSpent).toFixed(2)}</p>
                   </td>
                   <td className="py-4 px-6">
                     <div className="flex items-center space-x-1">
@@ -327,7 +327,7 @@ const CustomerDetail: React.FC<{ customerId: string, mockCustomers: CustomerUI[]
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">Total Spent</p>
-              <p className="text-2xl font-bold text-gray-900">${(customer.totalSpent).toFixed(2)}</p>
+              <p className="text-2xl font-bold text-gray-900">€{(customer.totalSpent).toFixed(2)}</p>
             </div>
             <div className="p-3 bg-green-100 rounded-lg">
               <span className="text-xl font-bold text-green-600">$</span>
@@ -339,7 +339,7 @@ const CustomerDetail: React.FC<{ customerId: string, mockCustomers: CustomerUI[]
             <div>
               <p className="text-sm text-gray-600">Average per Ride</p>
               <p className="text-2xl font-bold text-gray-900">
-                {customer.totalRides > 0 ? `$${(customer.totalSpent / customer.totalRides).toFixed(2)}` : '$0.00'}
+                {customer.totalRides > 0 ? `€${(customer.totalSpent / customer.totalRides).toFixed(2)}` : '€0.00'}
               </p>
             </div>
             <div className="p-3 bg-purple-100 rounded-lg">
@@ -404,7 +404,7 @@ const CustomerDetail: React.FC<{ customerId: string, mockCustomers: CustomerUI[]
                     </p>
                   </td>
                   <td className="py-4 px-6">
-                    <p className="text-sm font-medium text-gray-900">${ride.cost.toFixed(2)}</p>
+                    <p className="text-sm font-medium text-gray-900">€{ride.cost.toFixed(2)}</p>
                   </td>
                   <td className="py-4 px-6">
                     <StatusBadge status="pending" size="sm" />
