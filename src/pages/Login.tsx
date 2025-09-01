@@ -100,13 +100,13 @@ const Login: React.FC = () => {
             </button>
           </form>
 
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+          {/* <div className="mt-6 p-4 bg-blue-50 rounded-lg">
             <p className="text-sm text-blue-800 text-center">
               <strong>Demo Credentials:</strong><br />
               Email: admin@taxiapp.com<br />
               Password: admin123
             </p>
-          </div>
+          </div> */}
         </div>
       </div>
     </div>

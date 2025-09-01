@@ -1,5 +1,5 @@
 // src/lib/api.ts
-export const API = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000/admin";
+export const API = import.meta.env.VITE_API_BASE_URL || "https://api.dunfermlinetaxiapp.com/api";
 
 export async function getCustomers() {
   const r = await fetch(`${API}/customers`);
