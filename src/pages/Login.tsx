@@ -41,7 +41,7 @@ const Login: React.FC = () => {
             <div className="mx-auto w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mb-4">
               <Car className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">TaxiAdmin</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Dunfermline TaxiAdmin</h1>
             <p className="text-gray-600 mt-2">Sign in to your admin account</p>
           </div>
 
