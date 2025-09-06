@@ -13,7 +13,7 @@ const Login: React.FC = () => {
   const { user, login } = useAuth();
 
   if (user) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/rides" replace />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
