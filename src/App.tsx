@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Rides from './pages/Rides';
 import Customers from './pages/Customers';
 import Drivers from './pages/Drivers';
+import Users from './pages/Users';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
@@ -40,6 +41,7 @@ const AppRoutes: React.FC = () => {
         <Route path="customers" element={<Customers />} />
         <Route path="customers/:customerId" element={<Customers />} />
         <Route path="drivers" element={<Drivers />} />
+        <Route path="users" element={<Users />} />
       </Route>
     </Routes>
   );

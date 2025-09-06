@@ -5,6 +5,7 @@ import {
   Car, 
   Users, 
   UserCheck, 
+  UserCog,
   LogOut,
   Menu,
   X
@@ -24,6 +25,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
     { path: '/rides', icon: Car, label: 'Rides' },
     { path: '/customers', icon: Users, label: 'Customers' },
     { path: '/drivers', icon: UserCheck, label: 'Drivers' },
+    { path: '/users', icon: UserCog, label: 'Users' },
   ];
 
   return (

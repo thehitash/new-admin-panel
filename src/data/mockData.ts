@@ -1,4 +1,4 @@
-import { Customer, Driver, Ride, DashboardStats } from '../types';
+import { Customer, Driver, Ride, DashboardStats, AppUser } from '../types';
 
 export const mockCustomers: Customer[] = [
   {
@@ -195,3 +195,56 @@ export const mockStats: DashboardStats = {
   totalRevenue: 52845.75,
   activeDrivers: 23
 };
+
+export const mockUsers: AppUser[] = [
+  {
+    id: 'u1',
+    name: 'John Admin',
+    contactNumber: '+44 7700 900123',
+    email: 'john.admin@taxiapp.com',
+    address: '123 Admin Street, London, UK',
+    role: 'admin',
+    isActive: true,
+    createdAt: '2023-01-15T10:30:00Z'
+  },
+  {
+    id: 'u2',
+    name: 'Sarah Manager',
+    contactNumber: '+44 7700 900456',
+    email: 'sarah.manager@taxiapp.com',
+    address: '456 Manager Avenue, Manchester, UK',
+    role: 'manager',
+    isActive: true,
+    createdAt: '2023-02-20T14:15:00Z'
+  },
+  {
+    id: 'u3',
+    name: 'Mike Driver',
+    contactNumber: '+44 7700 900789',
+    email: 'mike.driver@taxiapp.com',
+    address: '789 Driver Road, Birmingham, UK',
+    role: 'driver',
+    isActive: true,
+    createdAt: '2023-03-10T09:45:00Z'
+  },
+  {
+    id: 'u4',
+    name: 'Emma Manager',
+    contactNumber: '+44 7700 900321',
+    email: 'emma.manager@taxiapp.com',
+    address: '321 Management Close, Leeds, UK',
+    role: 'manager',
+    isActive: false,
+    createdAt: '2023-04-05T16:20:00Z'
+  },
+  {
+    id: 'u5',
+    name: 'Tom Driver',
+    contactNumber: '+44 7700 900654',
+    email: 'tom.driver@taxiapp.com',
+    address: '654 Transport Lane, Liverpool, UK',
+    role: 'driver',
+    isActive: true,
+    createdAt: '2023-05-12T11:30:00Z'
+  }
+];
