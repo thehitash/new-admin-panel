@@ -35,8 +35,8 @@ const AppRoutes: React.FC = () => {
           </PrivateRoute>
         }
       >
-        <Route index element={<Navigate to="/dashboard" replace />} />
-        <Route path="dashboard" element={<Dashboard />} />
+        <Route index element={<Navigate to="/rides" replace />} />
+        {/* <Route path="dashboard" element={<Dashboard />} /> */}
         <Route path="rides" element={<Rides />} />
         <Route path="customers" element={<Customers />} />
         <Route path="customers/:customerId" element={<Customers />} />
