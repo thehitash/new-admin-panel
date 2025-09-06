@@ -7,7 +7,8 @@ import {
   Check, 
   X,
   MapPin,
-  Clock
+  Clock,
+  Euro
 } from 'lucide-react';
 // import { mockRides, mockDrivers } from '../data/mockData';
 import { getRides, getDrivers } from '../utils/apis';
@@ -120,6 +121,9 @@ const Rides: React.FC = () => {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState('');
 
+    const [showPriceModal, setShowPriceModal] = useState(false);
+  const [newPrice, setNewPrice] = useState('');
+
   // Fetch from API once
   useEffect(() => {
     let mounted = true;
@@ -192,11 +196,48 @@ const Rides: React.FC = () => {
     setSelectedDriver('');
   };
 
+   const handleOpenPriceModal = (ride: Ride) => {
+    setNewPrice(ride.cost.toString());
+    setShowPriceModal(true);
+  };
+
+const handleUpdateAllPrices = () => {
+  if (newPrice) {
+    const updatedPrice = parseFloat(newPrice);
+    if (!isNaN(updatedPrice) && updatedPrice > 0) {
+      // Update all rides with the new price
+      setRides(prev => prev.map(ride => ({
+        ...ride,
+        cost: updatedPrice
+      })));
+      
+      // In real app: make API call to update all ride prices
+      console.log(`All ${rides.length} rides updated to €${updatedPrice.toFixed(2)} each`);
+      console.log(`Total revenue would be: €${(rides.length * updatedPrice).toFixed(2)}`);
+      
+      // Optional: Show success message
+      // toast.success(`Successfully updated ${rides.length} rides to €${updatedPrice.toFixed(2)} each`);
+    }
+  }
+  
+  // Close modal and reset state
+  setShowPriceModal(false);
+  setNewPrice('');
+};
+
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Ride Management</h1>
         <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setShowPriceModal(true)}
+            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+          >
+            <Euro className="w-4 h-4" />
+            <span>Change Price</span>
+          </button>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input
@@ -560,6 +601,96 @@ const Rides: React.FC = () => {
           </div>
         </Modal>
       )}
+
+      {/* Global Price Change Modal */}
+{showPriceModal && (
+  <Modal
+    isOpen={true}
+    onClose={() => {
+      setShowPriceModal(false);
+      setNewPrice('');
+    }}
+    title="Change Price for All Rides"
+  >
+    <div className="space-y-4">
+      {/* Information Section */}
+      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <h4 className="font-medium text-blue-900 mb-2">Global Price Update</h4>
+        <p className="text-sm text-blue-700">
+          This will update the price for all rides in the system. Current total rides: {rides.length}
+        </p>
+      </div>
+
+      {/* Price Input Field */}
+      <div>
+        <label htmlFor="globalPrice" className="block text-sm font-medium text-gray-700 mb-2">
+          Set New Price for All Rides (€)
+        </label>
+        <input
+          id="globalPrice"
+          type="number"
+          min="0"
+          step="0.01"
+          value={newPrice}
+          onChange={(e) => setNewPrice(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg"
+          placeholder="Enter price for all rides"
+          autoFocus
+        />
+        {newPrice && parseFloat(newPrice) > 0 && (
+          <p className="text-sm text-gray-600 mt-2">
+            All {rides.length} rides will be updated to €{parseFloat(newPrice).toFixed(2)} each
+          </p>
+        )}
+      </div>
+
+      {/* Preview Section */}
+      {newPrice && parseFloat(newPrice) > 0 && (
+        <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+          <h4 className="font-medium text-green-900 mb-2">Preview</h4>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-green-700">
+                <strong>Rides to Update:</strong> {rides.length}
+              </p>
+              <p className="text-green-700">
+                <strong>New Price Each:</strong> €{parseFloat(newPrice).toFixed(2)}
+              </p>
+            </div>
+            <div>
+              <p className="text-green-700">
+                <strong>Total Revenue:</strong> €{(rides.length * parseFloat(newPrice)).toFixed(2)}
+              </p>
+              <p className="text-green-700">
+                <strong>Status:</strong> Ready to update
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Action Buttons */}
+      <div className="flex space-x-3 pt-4">
+        <button
+          onClick={handleUpdateAllPrices}
+          disabled={!newPrice || parseFloat(newPrice) <= 0}
+          className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
+        >
+          Update All Prices to €{newPrice && parseFloat(newPrice) > 0 ? parseFloat(newPrice).toFixed(2) : '0.00'}
+        </button>
+        <button
+          onClick={() => {
+            setShowPriceModal(false);
+            setNewPrice('');
+          }}
+          className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </Modal>
+)}
     </div>
   );
 };

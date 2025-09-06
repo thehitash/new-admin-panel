@@ -6,7 +6,9 @@ import {
   Users, 
   UserCheck, 
   LogOut,
+  UserCog,
   Menu,
+  User,
   X
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -20,10 +22,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
   const { user, logout } = useAuth();
 
   const navigationItems = [
-    { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    // { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/rides', icon: Car, label: 'Rides' },
     { path: '/customers', icon: Users, label: 'Customers' },
     { path: '/drivers', icon: UserCheck, label: 'Drivers' },
+{ path: '/users', icon: UserCog, label: 'Users' },
   ];
 
   return (

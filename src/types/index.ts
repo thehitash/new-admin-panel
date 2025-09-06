@@ -2,7 +2,20 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  contactNumber: string;
+  address: string;
   role: 'admin' | 'manager';
+}
+
+export interface AppUser {
+  id: string;
+  name: string;
+  contactNumber: string;
+  email: string;
+  address: string;
+  role: 'admin' | 'manager' | 'driver';
+  isActive: boolean;
+  createdAt: string;
 }
 
 export interface Customer {
