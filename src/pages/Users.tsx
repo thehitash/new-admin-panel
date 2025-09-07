@@ -1,4 +1,4 @@
-// src/pages/Users.tsx  (or wherever your Users component lives)
+// src/pages/Users.tsx
 import React, { useEffect, useState } from 'react';
 import {
   Search,
@@ -11,14 +11,13 @@ import {
   Mail,
   MapPin,
   Calendar,
-  Shield,
   User,
   Trash2
 } from 'lucide-react';
 import Modal from '../components/UI/Modal';
 import type { AppUser } from '../types';
 
-// import centralized api functions
+// centralized API functions (adjust path if needed)
 import {
   getDriversManagers,
   createUser,
@@ -43,7 +42,6 @@ const Users: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roleFilter]);
 
-  // Load users and filter out admin users so they don't appear in UI
   const loadUsers = async () => {
     try {
       setLoading(true);
@@ -52,11 +50,9 @@ const Users: React.FC = () => {
       const roleParam = roleFilter === 'all' ? undefined : (roleFilter as 'driver' | 'manager');
       const json = await getDriversManagers(roleParam);
 
-      // getDriversManagers returns whatever your API gives. Original code expected { success, users }
       if (json && (json.success || json.users || Array.isArray(json))) {
-        // normalize shape: prefer json.users else json (array) else empty
         const arr = json.users ?? (Array.isArray(json) ? json : []);
-        // filter out admin users returned from backend
+        // filter out admin users
         const filtered = arr.filter((u: AppUser) => u.role !== 'admin');
         setUsers(filtered);
       } else {
@@ -70,15 +66,12 @@ const Users: React.FC = () => {
     }
   };
 
-  // Toggle active via centralized API
   const handleToggleActive = async (userId: string) => {
     try {
       const json = await toggleUserActive(userId);
-      // assume json.user contains updated user
       if (json && (json.success || json.user)) {
         const updated = json.user ?? json;
         if (updated.role === 'admin') {
-          // remove admin if toggled to admin
           setUsers(prev => prev.filter(u => u.id !== userId));
         } else {
           setUsers(prev => prev.map(u => (u.id === userId ? updated : u)));
@@ -115,7 +108,6 @@ const Users: React.FC = () => {
     try {
       const json = await deleteUser(userId);
       if (json && (json.success || json.message === undefined)) {
-        // assume success when server returns success flag or empty body with 2xx
         setUsers(prev => prev.filter(u => u.id !== userId));
       } else {
         alert(json?.message || 'Failed to delete user');
@@ -128,7 +120,6 @@ const Users: React.FC = () => {
 
   const getRoleColor = (role: string) => {
     switch (role) {
-      // removed admin styling
       case 'manager': return 'bg-blue-100 text-blue-800';
       case 'driver': return 'bg-green-100 text-green-800';
       default: return 'bg-gray-100 text-gray-800';
@@ -136,15 +127,10 @@ const Users: React.FC = () => {
   };
 
   const getRoleIcon = (role: string) => {
-    switch (role) {
-      // removed admin icon
-      case 'manager': return User;
-      case 'driver': return User;
-      default: return User;
-    }
+    // using same User icon for manager/driver
+    return User;
   };
 
-  // filter and search (admins are already removed from users array)
   const filteredUsers = users.filter(user => {
     const matchesSearch =
       (user.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -158,7 +144,6 @@ const Users: React.FC = () => {
   });
 
   const activeUsers = users.filter(u => u.isActive).length;
-  // adminCount intentionally removed
   const managerCount = users.filter(u => u.role === 'manager').length;
   const driverCount = users.filter(u => u.role === 'driver').length;
 
@@ -178,7 +163,6 @@ const Users: React.FC = () => {
             />
           </div>
 
-          {/* removed Admin option from filter */}
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
@@ -199,7 +183,7 @@ const Users: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats: admin stat removed */}
+      {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
           { label: 'Total Users', value: users.length, color: 'bg-blue-500' },
@@ -334,14 +318,16 @@ const Users: React.FC = () => {
                 setSelectedUser(null);
                 setIsEditing(false);
               }}
-              onSave={async (userData) => {
+              onSave={async (userData, password) => {
                 try {
                   if (selectedUser) {
-                    // update user
-                    const json = await updateUser(selectedUser.id, userData);
+                    // Update user
+                    // include password only if provided (optional password change)
+                    const payload = { ...userData } as any;
+                    if (password) payload.password = password;
+                    const json = await updateUser(selectedUser.id, payload);
                     if (json && (json.success || json.user)) {
                       const updated = json.user ?? json;
-                      // if backend returned admin, remove; else update
                       if (updated.role === 'admin') {
                         setUsers(prev => prev.filter(u => u.id !== selectedUser.id));
                       } else {
@@ -352,11 +338,15 @@ const Users: React.FC = () => {
                       return;
                     }
                   } else {
-                    // CREATE user
-                    const json = await createUser(userData);
+                    // Create user (password required)
+                    if (!userData.password && !userData.password === undefined) {
+                      // ensure password present — but the form enforces it
+                    }
+                    const payload: any = { ...userData };
+                    if (userData.password) payload.password = userData.password;
+                    const json = await createUser(payload);
                     if (json && (json.success || json.user)) {
                       const created = json.user ?? json;
-                      // only add if not admin
                       if (created.role !== 'admin') {
                         setUsers(prev => [created, ...prev]);
                       }
@@ -385,26 +375,62 @@ const Users: React.FC = () => {
 };
 
 /* ----------------------
-   UserForm & UserDetails components
-   (admin option removed from Role select)
+   UserForm & UserDetails
+   (Password: required when creating, optional when editing)
    ---------------------- */
 
 const UserForm: React.FC<{
   user: AppUser | null;
   onClose: () => void;
-  onSave: (data: Omit<AppUser, 'id' | 'createdAt'>) => void | Promise<void>;
+  onSave: (data: Omit<AppUser, 'id' | 'createdAt' | 'password'> & { password?: string }, password?: string) => void | Promise<void>;
 }> = ({ user, onClose, onSave }) => {
   const [formData, setFormData] = useState({
     name: user?.name || '',
-    contactNumber: user?.contactNumber || '+44 ',
+    contactNumber: user?.contactNumber,
     email: user?.email || '',
     address: user?.address || '',
-    role: user?.role || 'driver' as 'manager' | 'driver',
+    role: (user?.role as 'manager' | 'driver') || 'driver',
     isActive: user?.isActive ?? true
   });
 
+  // password handling: required for create, optional for edit
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // basic validation
+    if (!formData.name || !formData.email) {
+      alert('Please fill required fields');
+      return;
+    }
+
+    if (!user) {
+      // creating: password required
+      if (!password || password.length < 6) {
+        alert('Please provide a password with at least 6 characters.');
+        return;
+      }
+      if (password !== confirmPassword) {
+        alert('Passwords do not match.');
+        return;
+      }
+    } else {
+      // editing: if password provided, validate it
+      if (password) {
+        if (password.length < 6) {
+          alert('If changing password, it must be at least 6 characters.');
+          return;
+        }
+        if (password !== confirmPassword) {
+          alert('Passwords do not match.');
+          return;
+        }
+      }
+    }
+
+    // onSave receives form data and password separately for clarity
     void onSave({
       name: formData.name,
       email: formData.email,
@@ -412,7 +438,9 @@ const UserForm: React.FC<{
       address: formData.address,
       role: formData.role,
       isActive: formData.isActive,
-    });
+      // include password in data for creation convenience — handler will also accept separate password param
+      ...(password ? { password } : {}),
+    }, password || undefined);
   };
 
   return (
@@ -460,7 +488,7 @@ const UserForm: React.FC<{
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             required
           >
-            {/* admin option removed */}
+            {/* Admin option intentionally removed */}
             <option value="manager">Manager</option>
             <option value="driver">Driver</option>
           </select>
@@ -477,6 +505,36 @@ const UserForm: React.FC<{
           placeholder="Enter full address..."
           required
         />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Password: required when creating; optional when editing */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            {user ? 'Change Password (optional)' : 'Password'}
+          </label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            placeholder={user ? 'Leave empty to keep current password' : 'Enter password (min 6 chars)'}
+            minLength={user ? 0 : 6}
+            {...(user ? {} : { required: true })}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Confirm Password</label>
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            placeholder={user ? 'Confirm new password (optional)' : 'Confirm password'}
+            {...(user ? {} : { required: true })}
+          />
+        </div>
       </div>
 
       <div className="flex items-center">
@@ -519,15 +577,7 @@ const UserDetails: React.FC<{ user: AppUser }> = ({ user }) => {
     }
   };
 
-  const getRoleIcon = (role: string) => {
-    switch (role) {
-      case 'manager': return User;
-      case 'driver': return User;
-      default: return User;
-    }
-  };
-
-  const RoleIcon = getRoleIcon(user.role);
+  const RoleIcon = User;
 
   return (
     <div className="space-y-6">

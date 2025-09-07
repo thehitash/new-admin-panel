@@ -1,11 +1,11 @@
-// src/pages/Rides.tsx  (or wherever you keep it)
+// src/pages/Rides.tsx
 import React, { useEffect, useState } from 'react';
-import { 
-  Search, 
-  Filter, 
-  Eye, 
-  UserPlus, 
-  Check, 
+import {
+  Search,
+  Filter,
+  Eye,
+  UserPlus,
+  Check,
   X,
   MapPin,
   Clock,
@@ -48,33 +48,81 @@ function normalizeDriver(u: ApiDriver): Driver {
   };
 }
 
-function normalizeRide(r: ApiRide): Ride {
+/**
+ * Returns normalized Ride object and attaches optional extras:
+ * customerPhone, paymentStatus ('paid'|'unpaid'), asap (boolean)
+ */
+function normalizeRide(r: ApiRide): Ride & { customerPhone?: string | null; paymentStatus?: string | undefined; asap?: boolean } {
   const id = String(r.id ?? r.rideId ?? r.ride_id ?? r.reference ?? `${Date.now()}-${Math.random()}`);
-  const first = r.customerFirstName ?? r.first_name ?? r.user_first_name ?? r.user?.first_name;
-  const last  = r.customerLastName ?? r.last_name ?? r.user_last_name ?? r.user?.last_name;
-  const customerName = r.customerName ?? ([first, last].filter(Boolean).join(' ').trim() || r.user?.name || r.customer?.name || r.user?.phonenumber || r.user?.email || 'Customer');
 
+  // Customer name inference (multiple shapes)
+  const first = r.customerFirstName ?? r.first_name ?? r.user_first_name ?? r.user?.first_name;
+  const last = r.customerLastName ?? r.last_name ?? r.user_last_name ?? r.user?.last_name;
+  const customerName = r.customerName ?? (
+    [first, last].filter(Boolean).join(' ').trim() ||
+    r.user?.name ||
+    r.customer?.name ||
+    r.user?.phonenumber ||
+    r.user?.email ||
+    'Customer'
+  );
+
+  // Driver inference
   const driverFirst = r.driverFirstName ?? r.driver?.first_name;
-  const driverLast  = r.driverLastName ?? r.driver?.last_name;
+  const driverLast = r.driverLastName ?? r.driver?.last_name;
   const driverName = r.driverName ?? ([driverFirst, driverLast].filter(Boolean).join(' ').trim() || r.driver?.name || '');
 
+  // Route
   const from = r.from ?? r.pickup ?? r.start ?? r.pickupAddress ?? r.source ?? '-';
-  const to   = r.to ?? r.dropoff ?? r.end ?? r.dropoffAddress ?? r.destination ?? '-';
+  const to = r.to ?? r.dropoff ?? r.end ?? r.dropoffAddress ?? r.destination ?? '-';
 
-  const requestedAt = (r.requestedAt ?? r.createdAt ?? r.date ?? new Date().toISOString()).toString();
-  const completedAt = r.completedAt ?? r.endTime ?? null;
+  // times
+  const requestedAt = (r.requestedAt ?? r.createdAt ?? r.date ?? r.created ?? new Date().toISOString()).toString();
+  const completedAt = r.completedAt ?? r.endTime ?? r.end_trip_time ?? null;
 
-  const cost = Number(r.cost ?? r.fare ?? r.amount ?? r.price ?? 0);
-  const distance = r.distance ?? r.km ?? r.miles ?? '-';
-  const duration = r.duration ?? r.time ?? '-';
-  const status = (r.status ?? 'pending') as Ride['status'];
+  // cost/distance/duration/status
+  const cost = Number(r.cost ?? r.fare ?? r.amount ?? r.price ?? r.customer_total ?? 0);
+  const distance = r.distance ?? r.km ?? r.miles ?? r.distance_km ?? '-';
+  const duration = r.duration ?? r.time ?? r.duration_time ?? '-';
+  const status = (r.status ?? r.ride_status ?? 'pending') as Ride['status'];
 
-  return {
+  // phone extraction (many shapes)
+  const customerPhone =
+    r.customerPhone ??
+    r.phonenumber ??
+    r.customer?.phonenumber ??
+    r.user?.phonenumber ??
+    r.customer_phone ??
+    null;
+
+  // payment status normalization
+  let paymentStatus: string | undefined;
+  if (r.paymentStatus !== undefined) {
+    paymentStatus = typeof r.paymentStatus === 'string' ? r.paymentStatus : (r.paymentStatus ? 'paid' : 'unpaid');
+  } else if (r.customer_paid !== undefined) {
+    paymentStatus = (r.customer_paid === true || r.customer_paid === 1 || r.customer_paid === '1' || r.customer_paid === 'true') ? 'paid' : 'unpaid';
+  } else if (r.customerPaid !== undefined) {
+    paymentStatus = (r.customerPaid === true || r.customerPaid === 1) ? 'paid' : 'unpaid';
+  } else {
+    paymentStatus = undefined;
+  }
+
+  // asap normalization: accepts booleans, numbers, or strings
+  let asap: boolean | undefined;
+  if (r.asap !== undefined) {
+    asap = (r.asap === true || r.asap === 1 || r.asap === '1' || r.asap === 'true');
+  } else if (r.is_asap !== undefined) {
+    asap = (r.is_asap === true || r.is_asap === 1 || r.is_asap === '1' || r.is_asap === 'true');
+  } else {
+    asap = undefined;
+  }
+
+  const out: any = {
     id,
     customerId: String(r.customerId ?? r.user_id ?? r.customer_id ?? ''),
     customerName,
     driverId: r.driverId ? String(r.driverId) : (r.driver?.id ? String(r.driver.id) : ''),
-    driverName,
+    driverName: driverName ?? '',
     from,
     to,
     cost,
@@ -83,16 +131,24 @@ function normalizeRide(r: ApiRide): Ride {
     status,
     requestedAt,
     completedAt: completedAt ? String(completedAt) : undefined,
+    // extras:
+    customerPhone,
+    paymentStatus,
+    asap,
   };
+
+  return out as Ride & { customerPhone?: string | null; paymentStatus?: string | undefined; asap?: boolean };
 }
 
+const gbCurrency = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' });
+
 const Rides: React.FC = () => {
-  const [rides, setRides] = useState<Ride[]>([]);
+  const [rides, setRides] = useState<(Ride & { customerPhone?: string | null; paymentStatus?: string | undefined; asap?: boolean })[]>([]);
   const [mockDrivers, setMockDrivers] = useState<Driver[]>([]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [selectedRide, setSelectedRide] = useState<Ride | null>(null);
+  const [selectedRide, setSelectedRide] = useState<(Ride & { customerPhone?: string | null; paymentStatus?: string | undefined; asap?: boolean }) | null>(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState('');
 
@@ -123,8 +179,6 @@ const Rides: React.FC = () => {
     (async () => {
       try {
         const json = await getSettings();
-        // Accept server that returns either { success, settings: { basePrice, perMiles } }
-        // or a simple flat object. Be defensive.
         if (json) {
           const settings = json.settings ?? json;
           if (settings.basePrice !== undefined) setBasePrice(String(settings.basePrice));
@@ -141,11 +195,14 @@ const Rides: React.FC = () => {
   }, []);
 
   const filteredRides = rides.filter(ride => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term && statusFilter === 'all') return true;
     const matchesSearch =
-      ride.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (ride.from || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (ride.to || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ride.id.toLowerCase().includes(searchTerm.toLowerCase());
+      (ride.customerName || '').toLowerCase().includes(term) ||
+      (ride.from || '').toLowerCase().includes(term) ||
+      (ride.to || '').toLowerCase().includes(term) ||
+      (ride.id || '').toLowerCase().includes(term) ||
+      (ride.customerPhone || '').toLowerCase().includes(term);
     const matchesStatus = statusFilter === 'all' || ride.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -207,7 +264,6 @@ const Rides: React.FC = () => {
 
     try {
       const json = await changePrice(payload);
-      // If backend returns settings in response, update local state
       const settings = json.settings ?? json;
       if (settings && (settings.basePrice !== undefined || settings.perMiles !== undefined)) {
         if (settings.basePrice !== undefined) setBasePrice(String(settings.basePrice));
@@ -286,109 +342,234 @@ const Rides: React.FC = () => {
         ))}
       </div>
 
-      {/* Rides Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="text-left py-3 px-6 text-xs font-medium text-gray-500 uppercase tracking-wider">Ride Details</th>
-                <th className="text-left py-3 px-6 text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
-                <th className="text-left py-3 px-6 text-xs font-medium text-gray-500 uppercase tracking-wider">Driver</th>
-                <th className="text-left py-3 px-6 text-xs font-medium text-gray-500 uppercase tracking-wider">Route</th>
-                <th className="text-left py-3 px-6 text-xs font-medium text-gray-500 uppercase tracking-wider">Cost</th>
-                <th className="text-left py-3 px-6 text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="text-left py-3 px-6 text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+      {/* Desktop / Tablet: Table (md and up). Table is horizontally scrollable on small containers. */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto hidden md:block">
+        <table className="w-full min-w-[900px] table-auto">
+          <thead className="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider w-48">Ride Details</th>
+              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider w-56">Customer</th>
+              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider w-44">Driver</th>
+              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">Route</th>
+              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider w-36">Cost</th>
+              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider w-36">Status</th>
+              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider w-24">ASAP</th>
+              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider w-40">Payment Status</th>
+              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider w-36">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {filteredRides.map((ride, index) => (
+              <tr key={ride.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                <td className="py-4 px-4 align-top">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">#{String(ride.id).toUpperCase()}</p>
+                    <div className="flex items-center text-xs text-gray-500 mt-1">
+                      <Clock className="w-3 h-3 mr-1" />
+                      {new Date(ride.requestedAt).toLocaleString()}
+                    </div>
+                  </div>
+                </td>
+
+                <td className="py-4 px-4 align-top">
+                  <p className="text-sm font-medium text-gray-900">{ride.customerName}</p>
+                  <p className="text-xs text-gray-500 mt-1">{ride.customerPhone ?? '-'}</p>
+                </td>
+
+                <td className="py-4 px-4 align-top">
+                  {ride.driverName ? <p className="text-sm text-gray-900">{ride.driverName}</p> : <span className="text-sm text-gray-500">Not assigned</span>}
+                </td>
+
+                <td className="py-4 px-4 align-top">
+                  <div className="text-sm text-gray-900">
+                    <div className="flex items-center mb-1">
+                      <MapPin className="w-3 h-3 text-green-500 mr-1" />
+                      <span className="block truncate md:truncate-none md:max-w-lg">{ride.from}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <MapPin className="w-3 h-3 text-red-500 mr-1" />
+                      <span className="block truncate md:truncate-none md:max-w-lg">{ride.to}</span>
+                    </div>
+                  </div>
+                </td>
+
+                <td className="py-4 px-4 align-top">
+                  <p className="text-sm font-medium text-gray-900">{gbCurrency.format(Number(ride.cost ?? 0))}</p>
+                  <p className="text-xs text-gray-500">{typeof ride.distance === 'string' ? ride.distance : (Number(ride.distance || 0).toFixed(3))} miles</p>
+                </td>
+
+                <td className="py-4 px-4 align-top">
+                  <StatusBadge status={ride.status} size="sm" />
+                </td>
+
+                <td className="py-4 px-4 align-top">
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                    ride.asap ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    {ride.asap ? 'Yes' : 'No'}
+                  </span>
+                </td>
+
+                <td className="py-4 px-4 align-top">
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                    ride.paymentStatus === 'paid' ? 'bg-green-100 text-green-800'
+                      : ride.paymentStatus === 'unpaid' ? 'bg-red-100 text-red-800'
+                      : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    {ride.paymentStatus ?? 'unknown'}
+                  </span>
+                </td>
+
+                <td className="py-4 px-4 align-top">
+                  <div className="flex items-center space-x-2">
+                    <button onClick={() => setSelectedRide(ride)} className="p-1 text-gray-500 hover:text-blue-600 transition-colors" title="View Details"><Eye className="w-4 h-4" /></button>
+                    {ride.status === 'pending' && <>
+                      <button onClick={() => handleConfirmRide(ride.id)} className="p-1 text-gray-500 hover:text-green-600 transition-colors" title="Confirm Ride"><Check className="w-4 h-4" /></button>
+                      <button onClick={() => { setSelectedRide(ride); setShowAssignModal(true); }} className="p-1 text-gray-500 hover:text-blue-600 transition-colors" title="Assign Driver"><UserPlus className="w-4 h-4" /></button>
+                    </>}
+                    {(ride.status === 'pending' || ride.status === 'confirmed') && (
+                      <button onClick={() => handleCancelRide(ride.id)} className="p-1 text-gray-500 hover:text-red-600 transition-colors" title="Cancel Ride"><X className="w-4 h-4" /></button>
+                    )}
+                  </div>
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {filteredRides.map((ride, index) => (
-                <tr key={ride.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                  <td className="py-4 px-6">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">#{ride.id.toUpperCase()}</p>
-                      <div className="flex items-center text-xs text-gray-500 mt-1">
-                        <Clock className="w-3 h-3 mr-1" />
-                        {new Date(ride.requestedAt).toLocaleString()}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-4 px-6"><p className="text-sm font-medium text-gray-900">{ride.customerName}</p></td>
-                  <td className="py-4 px-6">{ride.driverName ? <p className="text-sm text-gray-900">{ride.driverName}</p> : <span className="text-sm text-gray-500">Not assigned</span>}</td>
-                  <td className="py-4 px-6">
-                    <div className="text-sm text-gray-900">
-                      <div className="flex items-center mb-1">
-                        <MapPin className="w-3 h-3 text-green-500 mr-1" />
-                        <span className="truncate max-w-32">{ride.from}</span>
-                      </div>
-                      <div className="flex items-center">
-                        <MapPin className="w-3 h-3 text-red-500 mr-1" />
-                        <span className="truncate max-w-32">{ride.to}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-4 px-6">
-                    <p className="text-sm font-medium text-gray-900">€{ride.cost.toFixed(2)}</p>
-                    <p className="text-xs text-gray-500">{ride.distance} miles</p>
-                  </td>
-                  <td className="py-4 px-6"><StatusBadge status={ride.status} size="sm" /></td>
-                  <td className="py-4 px-6">
-                    <div className="flex items-center space-x-2">
-                      <button onClick={() => setSelectedRide(ride)} className="p-1 text-gray-500 hover:text-blue-600 transition-colors" title="View Details"><Eye className="w-4 h-4" /></button>
-                      {ride.status === 'pending' && <>
-                        <button onClick={() => handleConfirmRide(ride.id)} className="p-1 text-gray-500 hover:text-green-600 transition-colors" title="Confirm Ride"><Check className="w-4 h-4" /></button>
-                        <button onClick={() => { setSelectedRide(ride); setShowAssignModal(true); }} className="p-1 text-gray-500 hover:text-blue-600 transition-colors" title="Assign Driver"><UserPlus className="w-4 h-4" /></button>
-                      </>}
-                      {(ride.status === 'pending' || ride.status === 'confirmed') && (
-                        <button onClick={() => handleCancelRide(ride.id)} className="p-1 text-gray-500 hover:text-red-600 transition-colors" title="Cancel Ride"><X className="w-4 h-4" /></button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile: stacked cards (visible under md) */}
+      <div className="space-y-3 md:hidden">
+        {filteredRides.map((ride) => (
+          <div key={ride.id} className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-900">#{String(ride.id).toUpperCase()}</p>
+                <div className="flex items-center text-xs text-gray-500 mt-1">
+                  <Clock className="w-3 h-3 mr-1" />
+                  {new Date(ride.requestedAt).toLocaleString()}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-sm font-medium">{gbCurrency.format(Number(ride.cost ?? 0))}</div>
+                <div className="text-xs text-gray-500">{typeof ride.distance === 'string' ? ride.distance : (Number(ride.distance || 0).toFixed(2))} miles</div>
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <div className="text-gray-500">Customer</div>
+                <div className="font-medium text-gray-900">{ride.customerName}</div>
+                <div className="text-xs text-gray-500 mt-1">{ride.customerPhone ?? '-'}</div>
+              </div>
+
+              <div>
+                <div className="text-gray-500">Driver</div>
+                <div className="font-medium text-gray-900">{ride.driverName || 'Not assigned'}</div>
+
+                <div className="mt-2">
+                  <div className="text-gray-500">Payment</div>
+                  <div className="mt-1">
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                      ride.paymentStatus === 'paid' ? 'bg-green-100 text-green-800'
+                        : ride.paymentStatus === 'unpaid' ? 'bg-red-100 text-red-800'
+                        : 'bg-gray-100 text-gray-600'
+                    }`}>{ride.paymentStatus ?? 'unknown'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-3 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <StatusBadge status={ride.status} size="sm" />
+                <span className={`ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                  ride.asap ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                }`}>{ride.asap ? 'Yes' : 'No'}</span>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <button onClick={() => setSelectedRide(ride)} className="p-1 text-gray-500 hover:text-blue-600 transition-colors" title="View Details"><Eye className="w-4 h-4" /></button>
+                {ride.status === 'pending' && <>
+                  <button onClick={() => handleConfirmRide(ride.id)} className="p-1 text-gray-500 hover:text-green-600 transition-colors" title="Confirm Ride"><Check className="w-4 h-4" /></button>
+                  <button onClick={() => { setSelectedRide(ride); setShowAssignModal(true); }} className="p-1 text-gray-500 hover:text-blue-600 transition-colors" title="Assign Driver"><UserPlus className="w-4 h-4" /></button>
+                </>}
+                {(ride.status === 'pending' || ride.status === 'confirmed') && (
+                  <button onClick={() => handleCancelRide(ride.id)} className="p-1 text-gray-500 hover:text-red-600 transition-colors" title="Cancel Ride"><X className="w-4 h-4" /></button>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Ride Details Modal */}
       {selectedRide && !showAssignModal && (
         <Modal isOpen={true} onClose={() => setSelectedRide(null)} title="Ride Details" size="lg">
-          {/* ... same content as before (omitted here for brevity) ... */}
           <div className="space-y-6">
-            {/* Ride information content — reuse from your existing component */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <h4 className="text-sm font-medium text-gray-900 mb-3">Ride Information</h4>
                 <div className="space-y-2">
-                  <p className="text-sm"><span className="text-gray-500">Ride ID:</span> #{selectedRide.id.toUpperCase()}</p>
+                  <p className="text-sm"><span className="text-gray-500">Ride ID:</span> #{String(selectedRide.id).toUpperCase()}</p>
                   <p className="text-sm"><span className="text-gray-500">Status:</span> <StatusBadge status={selectedRide.status} size="sm" /></p>
-                  <p className="text-sm"><span className="text-gray-500">Cost:</span> ${selectedRide.cost.toFixed(2)}</p>
+                  <p className="text-sm"><span className="text-gray-500">Cost:</span> {gbCurrency.format(Number(selectedRide.cost ?? 0))}</p>
                   <p className="text-sm"><span className="text-gray-500">Distance:</span> {selectedRide.distance}</p>
-                  <p className="text-sm"><span className="text-gray-500">Duration:</span> {selectedRide.duration}</p>
+                  <p className="text-sm"><span className="text-gray-500">Duration:</span> {selectedRide.duration ?? '-'}</p>
+                  <p className="text-sm"><span className="text-gray-500">Payment Status:</span> <strong>{selectedRide.paymentStatus ?? 'unknown'}</strong></p>
+                  <p className="text-sm"><span className="text-gray-500">ASAP:</span> <strong>{selectedRide.asap ? 'Yes' : 'No'}</strong></p>
                 </div>
               </div>
+
               <div>
                 <h4 className="text-sm font-medium text-gray-900 mb-3">Participants</h4>
                 <div className="space-y-2">
                   <p className="text-sm"><span className="text-gray-500">Customer:</span> {selectedRide.customerName}</p>
+                  <p className="text-sm"><span className="text-gray-500">Customer Phone:</span> {selectedRide.customerPhone ?? '-'}</p>
                   <p className="text-sm"><span className="text-gray-500">Driver:</span> {selectedRide.driverName || 'Not assigned'}</p>
                 </div>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Route</h4>
+              <div className="space-y-2">
+                <div className="flex items-start space-x-2">
+                  <MapPin className="w-4 h-4 text-green-500 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Pickup</p>
+                    <p className="text-sm text-gray-600">{selectedRide.from}</p>
+                  </div>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <MapPin className="w-4 h-4 text-red-500 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Drop-off</p>
+                    <p className="text-sm text-gray-600">{selectedRide.to}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Timeline</h4>
+              <div className="space-y-2">
+                <p className="text-sm"><span className="text-gray-500">Requested:</span> {new Date(selectedRide.requestedAt).toLocaleString()}</p>
+                {selectedRide.completedAt && <p className="text-sm"><span className="text-gray-500">Completed:</span> {new Date(selectedRide.completedAt).toLocaleString()}</p>}
               </div>
             </div>
           </div>
         </Modal>
       )}
 
-      {/* Assign Driver Modal (same as before) */}
+      {/* Assign Driver Modal */}
       {showAssignModal && selectedRide && (
         <Modal isOpen={true} onClose={() => { setShowAssignModal(false); setSelectedRide(null); setSelectedDriver(''); }} title="Assign Driver">
-          {/* ...source content reused... */}
           <div className="space-y-4">
             <div className="p-4 bg-gray-50 rounded-lg">
               <h4 className="font-medium text-gray-900 mb-2">Ride Details</h4>
               <p className="text-sm text-gray-600">{selectedRide.customerName} • {selectedRide.from} → {selectedRide.to}</p>
-              <p className="text-sm text-gray-600">${selectedRide.cost.toFixed(2)} • {selectedRide.distance}</p>
+              <p className="text-sm text-gray-600">{gbCurrency.format(Number(selectedRide.cost ?? 0))} • {selectedRide.distance}</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Select Available Driver</label>
@@ -421,18 +602,18 @@ const Rides: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="basePrice" className="block text-sm font-medium text-gray-700 mb-2">Base Price (€)</label>
+                <label htmlFor="basePrice" className="block text-sm font-medium text-gray-700 mb-2">Base Price (£)</label>
                 <input id="basePrice" type="number" min="0" step="0.01" value={basePrice} onChange={(e) => setBasePrice(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
               </div>
               <div>
-                <label htmlFor="perMiles" className="block text-sm font-medium text-gray-700 mb-2">Per Mile Price (€)</label>
+                <label htmlFor="perMiles" className="block text-sm font-medium text-gray-700 mb-2">Per Mile Price (£)</label>
                 <input id="perMiles" type="number" min="0" step="0.01" value={perMiles} onChange={(e) => setPerMiles(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
               </div>
             </div>
 
             <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
               <h4 className="font-medium text-green-900 mb-2">Preview (no ride changes)</h4>
-              <p className="text-sm text-green-700">New base price: €{basePrice ? parseFloat(basePrice).toFixed(2) : '0.00'} • per mile: €{perMiles ? parseFloat(perMiles).toFixed(2) : '0.00'}</p>
+              <p className="text-sm text-green-700">New base price: £{basePrice ? parseFloat(basePrice).toFixed(2) : '0.00'} • per mile: £{perMiles ? parseFloat(perMiles).toFixed(2) : '0.00'}</p>
             </div>
 
             <div className="flex space-x-3 pt-4">
