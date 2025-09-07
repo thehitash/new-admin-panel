@@ -274,6 +274,7 @@ const CustomerDetail: React.FC<{ customerId: string, mockCustomers: CustomerUI[]
           </div>
           <div className="flex-1">
             <h2 className="text-xl font-bold text-gray-900 mb-4">{customer.name}</h2>
+            
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div>
                 <p className="text-sm text-gray-500 mb-1">Email</p>
