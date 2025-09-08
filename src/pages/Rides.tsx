@@ -48,6 +48,10 @@ function normalizeDriver(u: ApiDriver): Driver {
   };
 }
 
+
+// Exclude unpaid rides for stats as well
+
+
 /**
  * Returns normalized Ride object and attaches optional extras:
  * customerPhone, paymentStatus ('paid'|'unpaid'), asap (boolean)
@@ -194,18 +198,33 @@ const Rides: React.FC = () => {
     return () => { mounted = false; };
   }, []);
 
-  const filteredRides = rides.filter(ride => {
-    const term = searchTerm.trim().toLowerCase();
-    if (!term && statusFilter === 'all') return true;
-    const matchesSearch =
-      (ride.customerName || '').toLowerCase().includes(term) ||
-      (ride.from || '').toLowerCase().includes(term) ||
-      (ride.to || '').toLowerCase().includes(term) ||
-      (ride.id || '').toLowerCase().includes(term) ||
-      (ride.customerPhone || '').toLowerCase().includes(term);
-    const matchesStatus = statusFilter === 'all' || ride.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+ const filteredRides = rides.filter(ride => {
+  // 🚨 Hide all unpaid rides
+  if (ride.paymentStatus === 'unpaid') return false;
+
+  const term = searchTerm.trim().toLowerCase();
+  if (!term && statusFilter === 'all') return true;
+
+  
+
+  const matchesSearch =
+    (ride.customerName || '').toLowerCase().includes(term) ||
+    (ride.from || '').toLowerCase().includes(term) ||
+    (ride.to || '').toLowerCase().includes(term) ||
+    (ride.id || '').toLowerCase().includes(term) ||
+    (ride.customerPhone || '').toLowerCase().includes(term);
+
+  const matchesStatus =
+    statusFilter === 'all' || ride.status === statusFilter;
+
+
+  return matchesSearch && matchesStatus;
+});
+
+// Exclude unpaid rides for stats as well
+
+
+const paidRides = rides.filter(r => r.paymentStatus !== 'unpaid');
 
   const availableDrivers = mockDrivers.filter(driver => driver.isActive && driver.isAvailable);
 
@@ -325,11 +344,11 @@ const Rides: React.FC = () => {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
-          { label: 'Total Rides', value: rides.length, color: 'bg-blue-500' },
-          { label: 'Pending', value: rides.filter(r => r.status === 'pending').length, color: 'bg-yellow-500' },
-          { label: 'In Progress', value: rides.filter(r => r.status === 'in-progress').length, color: 'bg-purple-500' },
-          { label: 'Completed', value: rides.filter(r => r.status === 'completed').length, color: 'bg-green-500' }
-        ].map((stat, index) => (
+  { label: 'Total Rides', value: paidRides.length, color: 'bg-blue-500' },
+  { label: 'Pending', value: paidRides.filter(r => r.status === 'pending').length, color: 'bg-yellow-500' },
+  { label: 'In Progress', value: paidRides.filter(r => r.status === 'in-progress').length, color: 'bg-purple-500' },
+  { label: 'Completed', value: paidRides.filter(r => r.status === 'completed').length, color: 'bg-green-500' }
+].map((stat, index) => (
           <div key={index} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="flex items-center justify-between">
               <div>

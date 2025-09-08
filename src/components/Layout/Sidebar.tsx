@@ -5,7 +5,6 @@ import {
   Car, 
   Users, 
   UserCheck, 
-  UserCog,
   LogOut,
   UserCog,
   Menu,
