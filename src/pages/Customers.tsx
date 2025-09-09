@@ -65,6 +65,12 @@ const Customers: React.FC = () => {
   const { customerId } = useParams();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
+  // page size options: tweak as you like
+const [currentPage, setCurrentPage] = useState(1);
+const [pageSize, setPageSize] = useState(10);
+
+
+
 
   // >>> Live data filled here (keeps the same variable names your JSX uses) <<<
   const [mockCustomers, setMockCustomers] = useState<CustomerUI[]>([]);
@@ -109,10 +115,22 @@ const Customers: React.FC = () => {
   }
 
   const filteredCustomers = mockCustomers.filter(customer =>
-    customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (customer.phone || '').includes(searchTerm)
-  );
+  customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  (customer.phone || '').includes(searchTerm)
+);
+
+// Pagination math
+const totalFiltered = filteredCustomers.length;
+const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+const safePage = Math.min(currentPage, totalPages); // clamp if filter shrinks results
+const startIndex = (safePage - 1) * pageSize;
+const endIndex = Math.min(startIndex + pageSize, totalFiltered);
+const paginatedCustomers = filteredCustomers.slice(startIndex, endIndex);
+
+  useEffect(() => {
+  setCurrentPage(1);
+}, [searchTerm]);
 
   return (
     <div className="space-y-6">
@@ -180,7 +198,7 @@ const Customers: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {filteredCustomers.map((customer, index) => (
+              {paginatedCustomers.map((customer, index) => (
                 <tr key={customer.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                   <td className="py-4 px-6">
                     <div className="flex items-center space-x-3">
@@ -239,6 +257,62 @@ const Customers: React.FC = () => {
           </table>
         </div>
       </div>
+      
+
+{/* Pagination footer */}
+
+<div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-4 py-3 border-t border-gray-200">
+  {/* Counts */}
+  <div className="text-sm text-gray-600">
+    Showing <span className="font-medium">{totalFiltered === 0 ? 0 : startIndex + 1}</span>
+    –<span className="font-medium">{endIndex}</span> of
+    <span className="font-medium"> {totalFiltered}</span> customers
+    {mockCustomers.length !== totalFiltered && (
+      <span className="text-gray-500"> (filtered from {mockCustomers.length} total)</span>
+    )}
+  </div>
+
+  {/* Controls */}
+  <div className="flex items-center gap-2">
+    {/* Page size */}
+    <label className="text-sm text-gray-600">Rows per page:</label>
+    <select
+      value={pageSize}
+      onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+      className="px-2 py-1 border border-gray-300 rounded-md text-sm"
+    >
+      <option value={10}>10</option>
+      <option value={25}>25</option>
+      <option value={50}>50</option>
+    </select>
+
+    {/* Prev/Next */}
+    <button
+      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+      disabled={safePage <= 1}
+      className={`px-3 py-1 rounded-md text-sm border ${
+        safePage <= 1 ? 'text-gray-400 border-gray-200 cursor-not-allowed' : 'text-gray-700 border-gray-300 hover:bg-gray-50'
+      }`}
+      aria-label="Previous page"
+    >
+      Prev
+    </button>
+    <span className="text-sm text-gray-600">
+      Page <span className="font-medium">{safePage}</span> of <span className="font-medium">{totalPages}</span>
+    </span>
+    <button
+      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+      disabled={safePage >= totalPages}
+      className={`px-3 py-1 rounded-md text-sm border ${
+        safePage >= totalPages ? 'text-gray-400 border-gray-200 cursor-not-allowed' : 'text-gray-700 border-gray-300 hover:bg-gray-50'
+      }`}
+      aria-label="Next page"
+    >
+      Next
+    </button>
+  </div>
+</div>
+
     </div>
   );
 };

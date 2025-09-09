@@ -15,6 +15,7 @@ import { getRides, getDrivers, getSettings, changePrice } from '../utils/apis';
 import { Ride, Driver } from '../types';
 import StatusBadge from '../components/UI/StatusBadge';
 import Modal from '../components/UI/Modal';
+import Switch from "react-switch";
 
 type ApiRide = Record<string, any>;
 type ApiDriver = {
@@ -160,6 +161,12 @@ const Rides: React.FC = () => {
   const [basePrice, setBasePrice] = useState('');   // as strings for inputs
   const [perMiles, setPerMiles] = useState('');
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  
+  const [checked, setChecked] = useState<boolean>(false);
+
+  const handleChange = (nextChecked: boolean) => {
+    setChecked(nextChecked);
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -302,9 +309,23 @@ const paidRides = rides.filter(r => r.paymentStatus !== 'unpaid');
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col lg:flex-row items-center justify-between mb-2">
         <h1 className="text-2xl font-bold text-gray-900">Ride Management</h1>
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-col gap-4 lg:flex-row items-center space-x-3">
+
+      <Switch
+        onChange={handleChange}
+        checked={checked}
+        onColor="#4ade80"
+        offColor="#d1d5db"
+        handleDiameter={20}
+        uncheckedIcon={false}
+        checkedIcon={false}
+        height={22}
+        width={48}
+      />
+
+
           <button
             onClick={handleOpenPriceModal}
             className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
