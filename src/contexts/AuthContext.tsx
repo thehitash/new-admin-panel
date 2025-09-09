@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from '../types';
+import { loginAdmin } from '../utils/apis';
 
 interface AuthContextType {
   user: User | null;
@@ -32,21 +33,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    // Mock authentication - in real app, this would be an API call
-    if (email === 'admin@taxiapp.com' && password === 'admin123') {
-      const mockUser: User = {
-        id: '1',
-        email: 'admin@taxiapp.com',
-        name: 'Admin User',
-        role: 'admin'
+  try {
+    const res = await loginAdmin({ email, password });
+
+    // Adjust to match your backend response shape
+    if (res?.success && res.user) {
+      const loggedInUser: User = {
+        id: res.user.id,
+        email: res.user.email,
+        name: res.user.name || "Admin User", // fallback if no name
+        role: res.user.role || "admin",
+        contactNumber: '',
+        address: ''
       };
-      setUser(mockUser);
-      localStorage.setItem('admin-user', JSON.stringify(mockUser));
+
+      setUser(loggedInUser);
+      localStorage.setItem("admin-user", JSON.stringify(loggedInUser));
+
       return true;
     }
-    return false;
-  };
 
+    return false;
+  } catch (error) {
+    console.error("Login failed:", error);
+    return false;
+  }
+};
   const logout = () => {
     setUser(null);
     localStorage.removeItem('admin-user');

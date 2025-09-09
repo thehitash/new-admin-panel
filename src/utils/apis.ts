@@ -1,6 +1,15 @@
 // src/lib/api.ts
 export const API = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/admin";
 
+
+export async function appStatus(){
+const r = await fetch(`${API}/control`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    
+  });
+  return parseJson(r)
+}
 /**
  * Small helper: parse JSON safely
  */
@@ -73,6 +82,16 @@ export async function updateUser(userId: string | number, payload: Record<string
   });
   return parseJson(r);
 }
+export async function loginAdmin(
+  payload: { email: string; password: string },
+  
+) {
+  const r = await fetch(`${API}/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+return parseJson(r)}
 
 /**
  * DELETE /admin/user/:id
@@ -126,4 +145,5 @@ export default {
   toggleUserActive,
   getSettings,
   changePrice,
+  appStatus,
 };
