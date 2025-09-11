@@ -25,9 +25,36 @@ async function parseJson(res: Response) {
 /* ----------------------
    Customers, drivers, rides, dashboard
    ---------------------- */
-export async function getCustomers() {
-  const r = await fetch(`${API}/customers`);
-  return parseJson(r);
+export async function getCustomers(page: number = 1, limit: number = 50) {
+  try {
+    const url = new URL(`${API}/customers`);
+    url.searchParams.set("page", String(page));
+    url.searchParams.set("limit", String(limit));
+
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        // add auth headers if needed:
+        // "Authorization": `Bearer ${token}`
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch customers: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return {
+      items: data.items ?? data.data ?? [], // support different API shapes
+      total: data.total ?? data.count ?? 0,
+      page: data.page ?? page,
+      limit: data.limit ?? limit,
+    };
+  } catch (err) {
+    console.error("❌ getCustomers error:", err);
+    return { items: [], total: 0, page, limit };
+  }
 }
 
 export async function getDrivers() {

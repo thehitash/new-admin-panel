@@ -11,7 +11,7 @@ import {
   Clock,
   Euro
 } from 'lucide-react';
-import { getRides, getDrivers, getSettings, changePrice,appStatus } from '../utils/apis';
+import { getRides, getDrivers, getSettings, changePrice } from '../utils/apis';
 import { Ride, Driver } from '../types';
 import StatusBadge from '../components/UI/StatusBadge';
 import Modal from '../components/UI/Modal';
@@ -164,26 +164,9 @@ const Rides: React.FC = () => {
   
   const [checked, setChecked] = useState<boolean>(false);
 
- const handleChange = async (nextChecked: boolean) => {
-  // optimistic UI: set immediately so the Switch feels responsive
-  setChecked(nextChecked);
-
-  try {
-    // call API which toggles appStatus on server and returns the new status
-    // expected response shape: { success: true, appStatus: 0|1 }
-    const resp = await appStatus();
-
-    // if API returned explicit value, use it; otherwise fallback to nextChecked
-    const newStatus = resp && (resp.appStatus !== undefined ? Number(resp.appStatus) : (nextChecked ? 1 : 0));
-
-    setChecked(Boolean(newStatus === 1));
-  } catch (err) {
-    console.error('Failed to update app status:', err);
-    // revert UI if API failed
-    setChecked(prev => !prev);
-  }
-};
-
+  const handleChange = (nextChecked: boolean) => {
+    setChecked(nextChecked);
+  };
 
   useEffect(() => {
     let mounted = true;
