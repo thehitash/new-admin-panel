@@ -214,6 +214,15 @@ const gbCurrency = new Intl.NumberFormat("en-GB", {
   currency: "GBP",
 });
 
+
+
+function parseAppStatus(v: any): boolean {
+  // accepts "1"/1/true/"true"/"on"/"online"
+  if (v === 1 || v === '1') return true;
+  const s = String(v ?? '').toLowerCase();
+  return s === 'true' || s === 'on' || s === 'online';
+}
+
 const Rides: React.FC = () => {
   const [rides, setRides] = useState<
     (Ride & {
@@ -259,33 +268,26 @@ const Rides: React.FC = () => {
   }
 
   const handleChange = async (nextChecked: boolean) => {
-    if (isToggling) return;
-    setIsToggling(true);
+  if (isToggling) return;
+  setIsToggling(true);
 
-    const prev = checked;
-    // optimistic UI
-    setChecked(nextChecked);
+  const prev = checked;
+  setChecked(nextChecked); // optimistic
 
-    try {
-      const res = await appStatus(); // PUT /control
-      // Infer final state from API response (robust to different shapes)
-      const final = normalizeControlStatus(res, nextChecked);
-      setChecked(final);
+  try {
+    await appStatus(); // PUT /control toggles on server
 
-      // Optional: notify user
-      // You can replace alert() with your toast system
-      if (final !== nextChecked) {
-        alert(`Server changed status to ${final ? "ON" : "OFF"}.`);
-      }
-    } catch (e) {
-      console.error("appStatus toggle failed", e);
-      // rollback optimistic change
-      setChecked(prev);
-      alert("Failed to update app status. Please try again.");
-    } finally {
-      setIsToggling(false);
-    }
-  };
+    // re-fetch current status from GET /admin/settings to be exact
+    const json = await getSettings();
+    const final = parseAppStatus(json?.settings?.appStatus);
+    setChecked(final);
+  } catch (e) {
+    console.error('appStatus toggle failed', e);
+    setChecked(prev); // rollback if anything failed
+  } finally {
+    setIsToggling(false);
+  }
+};
   useEffect(() => {
     let mounted = true;
 
@@ -306,21 +308,24 @@ const Rides: React.FC = () => {
       .catch(console.error);
 
     (async () => {
-      try {
-        const json = await getSettings();
-        if (json) {
-          const settings = json.settings ?? json;
-          if (settings.basePrice !== undefined)
-            setBasePrice(String(settings.basePrice));
-          if (settings.perMiles !== undefined)
-            setPerMiles(String(settings.perMiles));
-        }
-      } catch (err) {
-        console.error("getSettings error", err);
-      } finally {
-        if (mounted) setSettingsLoaded(true);
+  try {
+    const json = await getSettings(); // <- should call https://api.dunfermlinetaxiapp.com/admin/settings
+    if (json) {
+      const settings = json.settings ?? json;
+      if (settings.basePrice !== undefined) setBasePrice(String(settings.basePrice));
+      if (settings.perMiles !== undefined) setPerMiles(String(settings.perMiles));
+
+      // NEW: hydrate switch from appStatus
+      if (settings.appStatus !== undefined) {
+        setChecked(parseAppStatus(settings.appStatus));
       }
-    })();
+    }
+  } catch (err) {
+    console.error('getSettings error', err);
+  } finally {
+    if (mounted) setSettingsLoaded(true);
+  }
+})();
 
     return () => {
       mounted = false;
@@ -453,7 +458,7 @@ const Rides: React.FC = () => {
       <div className="flex flex-col lg:flex-row items-center justify-between mb-2">
         <h1 className="text-2xl font-bold text-gray-900">Ride Management</h1>
         <div className="flex flex-col gap-4 lg:flex-row items-center space-x-3">
-         <div className="inline-flex items-center gap-2">
+     <div className="inline-flex items-center gap-2">
   <Switch
     onChange={handleChange}
     checked={checked}
@@ -466,7 +471,6 @@ const Rides: React.FC = () => {
     height={22}
     width={48}
   />
-
   <span className={`text-sm ${checked ? "text-green-700" : "text-gray-600"}`}>
     {isToggling ? "Updating…" : checked ? "Online" : "Offline"}
   </span>
