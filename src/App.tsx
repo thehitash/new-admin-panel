@@ -7,7 +7,10 @@ import Dashboard from './pages/Dashboard';
 import Rides from './pages/Rides';
 import Customers from './pages/Customers';
 import Drivers from './pages/Drivers';
+import AddDriver from './pages/AddDriver';
 import Users from './pages/Users';
+import Notifications from './pages/Notifications';
+import Settings from './pages/Settings';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
@@ -41,7 +44,10 @@ const AppRoutes: React.FC = () => {
         <Route path="customers" element={<Customers />} />
         <Route path="customers/:customerId" element={<Customers />} />
         <Route path="drivers" element={<Drivers />} />
+        <Route path="add-driver" element={<AddDriver />} />
         <Route path="users" element={<Users />} />
+        <Route path="notifications" element={<Notifications />} />
+        <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>
   );

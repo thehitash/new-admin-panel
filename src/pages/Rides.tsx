@@ -81,36 +81,40 @@ function normalizeRide(
   );
 
   // Customer name inference (multiple shapes)
-  const first =
-    r.customerFirstName ??
-    r.first_name ??
-    r.user_first_name ??
-    r.user?.first_name;
-  const last =
-    r.customerLastName ?? r.last_name ?? r.user_last_name ?? r.user?.last_name;
   const customerName =
     r.customerName ??
-    ([first, last].filter(Boolean).join(" ").trim() ||
-      r.user?.name ||
-      r.customer?.name ||
-      r.user?.phonenumber ||
-      r.user?.email ||
-      "Customer");
+    r.rider?.fullName ??
+    r.rider?.name ??
+    r.user?.name ??
+    r.user?.fullName ??
+    r.customer?.name ??
+    (r.rider?.phoneNumber || r.user?.phonenumber || r.user?.email || "Customer");
 
   // Driver inference
-  const driverFirst = r.driverFirstName ?? r.driver?.first_name;
-  const driverLast = r.driverLastName ?? r.driver?.last_name;
   const driverName =
     r.driverName ??
-    ([driverFirst, driverLast].filter(Boolean).join(" ").trim() ||
-      r.driver?.name ||
-      "");
+    r.driver?.fullName ??
+    (r.driver?.name || "");
 
-  // Route
+  // Route - properly extract from pickupLocation and destinationLocation objects
   const from =
-    r.from ?? r.pickup ?? r.start ?? r.pickupAddress ?? r.source ?? "-";
+    r.pickupLocation?.name ??
+    r.pickupLocation?.address ??
+    r.from ??
+    r.pickup ??
+    r.start ??
+    r.pickupAddress ??
+    r.source ??
+    "-";
   const to =
-    r.to ?? r.dropoff ?? r.end ?? r.dropoffAddress ?? r.destination ?? "-";
+    r.destinationLocation?.name ??
+    r.destinationLocation?.address ??
+    r.to ??
+    r.dropoff ??
+    r.end ??
+    r.dropoffAddress ??
+    r.destination ??
+    "-";
 
   // times
   const requestedAt = (
@@ -124,7 +128,7 @@ function normalizeRide(
 
   // cost/distance/duration/status
   const cost = Number(
-    r.cost ?? r.fare ?? r.amount ?? r.price ?? r.customer_total ?? 0
+    r.fare ?? r.estimatedFare ?? r.cost ?? r.amount ?? r.price ?? r.customer_total ?? 0
   );
   const distance = r.distance ?? r.km ?? r.miles ?? r.distance_km ?? "-";
   const duration = r.duration ?? r.time ?? r.duration_time ?? "-";
@@ -133,6 +137,8 @@ function normalizeRide(
   // phone extraction (many shapes)
   const customerPhone =
     r.customerPhone ??
+    r.rider?.phoneNumber ??
+    r.rider?.phonenumber ??
     r.phonenumber ??
     r.customer?.phonenumber ??
     r.user?.phonenumber ??
@@ -180,10 +186,12 @@ function normalizeRide(
 
   const out: any = {
     id,
-    customerId: String(r.customerId ?? r.user_id ?? r.customer_id ?? ""),
+    customerId: String(r.customerId ?? r.rider?._id ?? r.user_id ?? r.customer_id ?? ""),
     customerName,
     driverId: r.driverId
       ? String(r.driverId)
+      : r.driver?._id
+      ? String(r.driver._id)
       : r.driver?.id
       ? String(r.driver.id)
       : "",
@@ -199,7 +207,14 @@ function normalizeRide(
     // extras:
     customerPhone,
     paymentStatus,
+    paymentMethod: r.paymentMethod,
+    paymentId: r.paymentId,
     asap,
+    // Additional ride details
+    vehicleName: r.vehicle?.name,
+    scheduledTime: r.scheduledTime,
+    isScheduled: r.isScheduled,
+    bookingMethod: r.bookingMethod,
   };
 
   return out as Ride & {
@@ -232,6 +247,18 @@ const Rides: React.FC = () => {
     })[]
   >([]);
   const [mockDrivers, setMockDrivers] = useState<Driver[]>([]);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalRides: 0,
+    limit: 25,
+    hasNextPage: false,
+    hasPrevPage: false
+  });
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -291,11 +318,16 @@ const Rides: React.FC = () => {
   useEffect(() => {
     let mounted = true;
 
-    getRides()
-      .then((data) => {
-        const items: ApiRide[] = data?.items ?? data ?? [];
+    getRides(currentPage, pageSize)
+      .then((response) => {
+        const items: ApiRide[] = response?.data ?? [];
         const mapped = items.map(normalizeRide);
-        if (mounted) setRides(mapped);
+        if (mounted) {
+          setRides(mapped);
+          if (response.pagination) {
+            setPagination(response.pagination);
+          }
+        }
       })
       .catch(console.error);
 
@@ -330,7 +362,7 @@ const Rides: React.FC = () => {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [currentPage, pageSize]);
 
   const filteredRides = rides.filter((ride) => {
     // 🚨 Hide all unpaid rides
@@ -850,6 +882,51 @@ const Rides: React.FC = () => {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Pagination */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-4 py-3 bg-white border-t border-gray-200 rounded-b-lg">
+        <div className="text-sm text-gray-600">
+          Showing <span className="font-medium">{((currentPage - 1) * pageSize) + 1}</span>
+          –<span className="font-medium">{Math.min(currentPage * pageSize, pagination.totalRides)}</span> of
+          <span className="font-medium"> {pagination.totalRides}</span> rides
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600">Rows per page:</label>
+          <select
+            value={pageSize}
+            onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+            className="px-2 py-1 border border-gray-300 rounded-md text-sm"
+          >
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+
+          <button
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={!pagination.hasPrevPage}
+            className={`px-3 py-1 rounded-md text-sm border ${
+              !pagination.hasPrevPage ? 'text-gray-400 border-gray-200 cursor-not-allowed' : 'text-gray-700 border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            Prev
+          </button>
+          <span className="text-sm text-gray-600">
+            Page <span className="font-medium">{currentPage}</span> of <span className="font-medium">{pagination.totalPages}</span>
+          </span>
+          <button
+            onClick={() => setCurrentPage(p => Math.min(pagination.totalPages, p + 1))}
+            disabled={!pagination.hasNextPage}
+            className={`px-3 py-1 rounded-md text-sm border ${
+              !pagination.hasNextPage ? 'text-gray-400 border-gray-200 cursor-not-allowed' : 'text-gray-700 border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            Next
+          </button>
+        </div>
       </div>
 
       {/* Ride Details Modal */}

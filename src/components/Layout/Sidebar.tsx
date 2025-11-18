@@ -1,15 +1,17 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Car, 
-  Users, 
-  UserCheck, 
+import {
+  LayoutDashboard,
+  Car,
+  Users,
+  UserCheck,
   LogOut,
   UserCog,
   Menu,
   User,
-  X
+  X,
+  Bell,
+  Settings
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -26,9 +28,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
     { path: '/rides', icon: Car, label: 'Rides' },
     { path: '/customers', icon: Users, label: 'Customers' },
     { path: '/drivers', icon: UserCheck, label: 'Drivers' },
-
+    { path: '/notifications', icon: Bell, label: 'Notifications' },
     { path: '/users', icon: UserCog, label: 'Users' },
-
+    { path: '/settings', icon: Settings, label: 'Settings' },
   ];
 
   return (

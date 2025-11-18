@@ -5,6 +5,7 @@ export interface User {
   contactNumber: string;
   address: string;
   role: 'admin' | 'manager';
+  token?: string; // JWT token for authentication
 }
 
 export interface AppUser {
@@ -42,6 +43,17 @@ export interface Driver {
   isAvailable: boolean;
   totalRides: number;
   joinedDate: string;
+  // Car details from backend
+  carName?: string;
+  carNumber?: string;
+  carModel?: string;
+  carColor?: string;
+  carDetails?: {
+    carName: string;
+    carNumber: string;
+    carModel: string;
+    carColor: string;
+  };
 }
 
 export interface Ride {
